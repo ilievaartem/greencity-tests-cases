@@ -1,59 +1,51 @@
 import unittest
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from events_page import EventsPage
 
 class GreenCityEventsTests(unittest.TestCase):
     
     def setUp(self):
-        self.driver = webdriver.Chrome()  
+        options = webdriver.ChromeOptions()
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+
+        self.driver = webdriver.Chrome(options=options)  
         self.driver.maximize_window()
-        self.driver.get("https://www.greencity.cx.ua/#/greenCity/events") 
-        self.wait = WebDriverWait(self.driver, 10)
+        self.page = EventsPage(self.driver)
+        self.page.open()
         
     def tearDown(self):
         self.driver.quit()
 
     def test_open_event_details(self):
-        first_event_card = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'secondary-global-button') and contains(text(), 'Більше')][1]")))
+        first_event_card = self.page.get_first_event_card()
 
-        self.driver.execute_script("arguments[0].click();", first_event_card)
+        first_event_card.click_more()
 
-        back_button = self.wait.until(EC.visibility_of_element_located((By.XPATH, "//div[ contains(@class, 'button-text') or contains(text(), 'Повернутися')]")))
-
-        self.assertTrue(back_button.is_displayed(), "Після відкриття деталей події кнопка 'Повернутися' не відображається.")
+        self.assertTrue(self.page.is_back_button_displayed(), "Після відкриття деталей події кнопка 'Повернутися' не відображається.")
 
     def test_search_exact_event(self):
         search_query = "123123"
 
-        search_icon = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "span.search-img")))
-        search_icon.click()
+        self.page.click_search_icon()
+        self.page.search_for_event(search_query)
 
-        search_input = self.wait.until(EC.visibility_of_element_located((By.XPATH, "//input[@type='text' or contains(@class, 'place-input') or contains(@class, 'search')]")))
-        search_input.send_keys(search_query)
+        first_result_title = self.page.get_event_title_by_text(search_query)   
+        self.assertIn(search_query, first_result_title, f"Після пошуку '{search_query}' перша знайдена подія не містить цей текст.")
 
-        first_result_title = self.wait.until(EC.visibility_of_element_located((By.XPATH, f"//p[contains(@class, 'event-name') and contains(text(), '{search_query}')]")))
-
-        self.assertIn(search_query, first_result_title.text, f"Після пошуку '{search_query}' перша знайдена подія не містить цей текст.")
-
-        clear_button = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "span.close-icon, img.cross-icon, .close-icon, .cross-position")))
-        clear_button.click()
-
-        self.assertTrue(search_input.get_attribute("value") == "", "Після очищення пошукового поля воно не є порожнім.")
+        self.page.clear_search()
+        self.assertEqual(self.page.get_search_input_value(), "", "Після очищення пошукового поля воно не є порожнім.")
 
     def test_search_invalid_query(self):
         invalid_query = "asdasdasd"
 
-        search_icon = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "span.search-img")))
-        search_icon.click()
+        self.page.click_search_icon()
+        self.page.search_for_event(invalid_query)
 
-        search_input = self.wait.until(EC.visibility_of_element_located((By.XPATH, "//input[@type='text' or contains(@class, 'place-input') or contains(@class, 'search')]")))
-        search_input.send_keys(invalid_query)
-
-        no_results_message = self.wait.until(EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'Ми не знайшли жодних результатів, що відповідають цьому запиту') or contains(@class, 'end-page-txt')]")))
-
-        self.assertTrue(no_results_message.is_displayed(), f"Після пошуку '{invalid_query}' не відображається повідомлення про відсутність результатів.")
+        self.assertTrue(self.page.is_no_results_message_displayed(), f"Після пошуку '{invalid_query}' не відображається повідомлення про відсутність результатів.")
 
 if __name__ == "__main__":
     unittest.main()
